@@ -1,4 +1,5 @@
 import unidecode
+import string
 from sklearn.feature_extraction.text import CountVectorizer
 from spacy.lang.en import English
 
@@ -25,8 +26,8 @@ class Pipe:
                  strip_accents: bool = False,
                  lowercase: bool = True,
                  preprocess: bool = False,
-                 max_df: int = 1.0,
-                 min_df: int = 1,
+                 max_df: float = 1.0,
+                 min_df: float = 1,
                  doc_start_token: str = None,
                  doc_end_token: str = None,
                  unk_token: str = None,
@@ -47,11 +48,30 @@ class Pipe:
         self.number_token = number_token
         self.alpha_num_token = alpha_num_token
 
+        # spacy init
+        self.nlp = English()
+
+        if self.preprocess:
+            stop_words = list(self.nlp.Defaults.stop_words)  # get spacy stopwords
+            # add punctuation to stop words
+            stop_words.extend(list(string.punctuation))
+            # special tokens
+            special_tokens = [self.doc_start_token,
+                              self.doc_end_token,
+                              self.unk_token,
+                              self.email_token,
+                              self.url_token,
+                              self.number_token,
+                              self.alpha_num_token]
+            stop_words.extend([token for token in special_tokens if token is not None])
+        else:
+            stop_words = None
+
         # count vectorizer
         self.vectorizer = CountVectorizer(tokenizer=lambda x: x.split('||--sep--||'),
                                           token_pattern=None,
                                           lowercase=False,
-                                          stop_words=None,
+                                          stop_words=stop_words,
                                           min_df=min_df,
                                           max_df=max_df)
 
@@ -96,30 +116,32 @@ class Pipe:
 
     def __tokenize_data(self,
                         docs: list[str]):
-        nlp = English()
-        tokenizer = nlp.tokenizer
+
+        tokenizer = self.nlp.tokenizer
         new_docs = []
         for doc in tokenizer.pipe(docs):
             a_doc = []
             if self.doc_start_token is not None:
                 a_doc.append(self.doc_start_token)
             for token in doc:
-                if self.number_token is not None and token.is_digit:
+                if token.is_space:
+                    continue
+                if len(token.text) > 15:
+                    continue
+                if token.is_alpha:
+                    a_doc.append(token.text)
+                elif self.number_token is not None and token.is_digit:
                     a_doc.append(self.number_token)
-                    continue
-                if self.email_token is not None and token.like_email:
+                elif self.email_token is not None and token.like_email:
                     a_doc.append(self.email_token)
-                    continue
-                if self.url_token is not None and token.like_url:
+                elif self.url_token is not None and token.like_url:
                     a_doc.append(self.url_token)
-                    continue
-                if self.alpha_num_token is not None and token.text.isalnum():
+                elif self.alpha_num_token is not None and token.text.isalnum():
                     a_doc.append(self.alpha_num_token)
-                    continue
-                if self.unk_token is not None and token.is_oov:
+                elif self.unk_token is not None and token.is_oov:
                     a_doc.append(self.unk_token)
-                    continue
-                a_doc.append(token.text)
+                else:
+                    a_doc.append(token.text)
             if self.doc_end_token is not None:
                 a_doc.append(self.doc_end_token)
             new_docs.append('||--sep--||'.join(a_doc))
