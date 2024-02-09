@@ -6,7 +6,7 @@ from spacy.lang.en import English
 
 
 class Pipe:
-    f"""
+    """
     Pipe class for TokenEase.
     choices in the pipeline:
     - 'strip_accents' : remove accents from the text (default: True)
@@ -80,35 +80,35 @@ class Pipe:
 
         # count vectorizer
         self.vectorizer = CountVectorizer(
-            tokenizer=self.tokenizer,
+            tokenizer=self._tokenizer,
             token_pattern=None,
             lowercase=False,
             stop_words=stop_words,
             min_df=min_df,
             max_df=max_df,
         )
+        self.trained = False
 
         # return variables
-        self.text = None
         self.vocab = None
 
-    def fit_transform(self, data: list[str]):
-        f"""
+    def fit_transform(self, docs: list[str]):
+        """
         This method is used to register and fit the data to the pipeline. It also returns the bag of words for the data.
         """
         # normalizing all the document strings.
-        data = self.__normalize(data)
-        data = self.__tokenize_data(data)
-        bow = self.vectorizer.fit_transform(data).toarray()
+        docs = self.__normalize(docs)
+        docs = self.__tokenize_data(docs)
+        bow = self.vectorizer.fit_transform(docs).toarray()
         self.vocab = self.vectorizer.vocabulary_
-        self.text = [doc.split(self.seperator) for doc in data]
-        return bow
+        self.trained = True
+        return bow, docs
 
     def transform(self, docs: list[str]):
-        f"""
+        """
         This method is used to get the bag of words for a document.
         """
-        if self.text is None:
+        if self.trained is False:
             raise Exception(
                 "No data has been registered yet. Please use fit_transform method first."
             )
@@ -117,10 +117,28 @@ class Pipe:
         bow = self.vectorizer.transform(docs).toarray()
         return bow, docs
 
-    def tokenizer(self, doc: str):
+    def _tokenizer(self, doc: str):
+        """
+        Tokenizes the given document based on the specified separator.
+
+        Args:
+            doc (str): The document to be tokenized.
+
+        Returns:
+            list: A list of tokens extracted from the document.
+        """
         return doc.split(self.seperator)
 
     def __tokenize_data(self, docs: list[str]):
+        """
+        Tokenizes a list of documents.
+
+        Args:
+            docs (list[str]): The list of documents to be tokenized.
+
+        Returns:
+            list[str]: The tokenized documents.
+        """
 
         tokenizer = self.nlp.tokenizer
         new_docs = []
@@ -153,6 +171,15 @@ class Pipe:
         return new_docs
 
     def __normalize(self, docs: list[str]):
+        """
+        Normalize the given list of documents.
+
+        Args:
+            docs (list[str]): The list of documents to be normalized.
+
+        Returns:
+            list[str]: The normalized list of documents.
+        """
         new_docs = []
         for doc in docs:
             if self.strip_accents:
@@ -163,12 +190,12 @@ class Pipe:
         return new_docs
 
     @classmethod
-    def load(cls, filename):
+    def from_pretrained(cls, filename):
         """
         Load a pipeline from a file.
 
         Parameters:
-        filename (str): The name of the file to load the pipeline from.
+        filename (str): The name of the file (path) to load the pipeline from.
 
         Returns:
         Pipe: The loaded pipeline object.
@@ -185,13 +212,22 @@ class Pipe:
         dump(self, filename)
 
     @property
-    def get_text(self):
-        if self.text is None:
-            raise Exception("No data has been registered yet.")
-        return self.text
+    def vocabulary(self):
+        """
+        Get the vocabulary.
 
-    @property
-    def get_vocab(self):
+        Returns:
+            The vocabulary if it has been registered, otherwise raises an exception.
+            The vocabulary is in the form of a dictionary where the keys are the tokens (words) and the values are the indices.
+        """
         if self.vocab is None:
             raise Exception("No data has been registered yet.")
         return self.vocab
+
+    @vocabulary.setter
+    def vocabulary(self, value):
+        raise AttributeError("Vocabulary cannot be set directly")
+
+    @vocabulary.deleter
+    def vocabulary(self):
+        raise AttributeError("Vocabulary cannot be deleted")
